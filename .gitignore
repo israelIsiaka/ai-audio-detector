@@ -32,9 +32,9 @@ results/train.csv
 results/dev.csv
 results/eval.csv
 
-# ── Trained model (binary, large) ────────────────────────
-models/detector.pkl
+# ── Trained models (large binaries — exclude extras, keep detector.pkl) ──
 models/*.pkl
+!models/detector.pkl
 
 # ── Generated reports ─────────────────────────────────────
 data/collection_report.json
