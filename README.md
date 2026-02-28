@@ -44,7 +44,7 @@ ai-audio-detector/
 │   ├── collect_elevenlabs.py  # generate samples via ElevenLabs API
 │   └── organize_asvspoof.py   # sort ASVspoof files by protocol label
 ├── models/
-│   └── detector.pkl           # trained model bundle (not in git)
+│   └── detector.pkl           # trained model bundle (included in repo)
 ├── results/
 │   ├── confusion_matrix_dev.png
 │   ├── confusion_matrix_eval.png
@@ -80,6 +80,80 @@ pip install librosa praat-parselmouth numpy pandas scikit-learn xgboost \
 ```bash
 python src/libaries_verification.py
 ```
+
+---
+
+## Use the pre-trained model (no training needed)
+
+`models/detector.pkl` is included in this repository. If you just want to run predictions you can skip data collection and training entirely.
+
+### Option 1 — Web UI + API
+
+Clone the repo, install dependencies, start the server, and open the browser:
+
+```bash
+git clone https://github.com/<you>/ai-audio-detector.git
+cd ai-audio-detector
+
+python3 -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+
+pip install librosa praat-parselmouth numpy pandas scikit-learn xgboost \
+            fastapi "uvicorn[standard]" python-multipart
+```
+
+> **macOS only:** `brew install libomp`
+
+```bash
+uvicorn api.main:app --port 8000
+```
+
+Open [http://localhost:8000](http://localhost:8000), drag in an audio file, and get a result.
+
+---
+
+### Option 2 — Command line
+
+```bash
+python src/pipeline.py your_audio.wav
+```
+
+```
+🎙️  your_audio.wav
+       Label      : NATURAL
+       Confidence : [████████████████░░░░] 82.4%
+       Probs      : {'natural': 0.824, 'ai_generated': 0.176}
+       Time       : 310.5 ms
+```
+
+For JSON output or a whole folder:
+
+```bash
+python src/pipeline.py your_audio.wav --json
+python src/pipeline.py path/to/folder/ --batch
+```
+
+---
+
+### Option 3 — Use `AudioDetector` in your own Python code
+
+Copy `src/pipeline.py` and `src/feature_extractor.py` into your project, then:
+
+```python
+import sys
+sys.path.insert(0, "path/to/ai-audio-detector/src")
+
+from pipeline import AudioDetector
+
+detector = AudioDetector(model_path="path/to/ai-audio-detector/models/detector.pkl")
+
+result = detector.predict("your_audio.wav")
+print(result["label"])       # "natural" or "ai_generated"
+print(result["confidence"])  # e.g. 0.9821
+print(result["probabilities"])  # {"natural": 0.9821, "ai_generated": 0.0179}
+```
+
+The only dependencies you need are: `librosa`, `praat-parselmouth`, `numpy`, `scikit-learn`, `xgboost`.
 
 ---
 
