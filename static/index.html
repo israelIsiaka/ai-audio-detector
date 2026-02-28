@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Audio Detector</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: #0f0f13;
+      color: #d4d4d8;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 16px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 600;
+      color: #f4f4f5;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      color: #71717a;
+      margin-bottom: 40px;
+    }
+
+    /* ── Drop zone ── */
+    .dropzone {
+      width: 100%;
+      max-width: 540px;
+      border: 2px dashed #3f3f46;
+      border-radius: 16px;
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+    }
+    .dropzone:hover, .dropzone.drag-over {
+      border-color: #6366f1;
+      background: #18181f;
+    }
+    .dropzone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .dropzone .icon {
+      font-size: 2.4rem;
+      margin-bottom: 12px;
+    }
+    .dropzone p {
+      font-size: 0.95rem;
+      color: #a1a1aa;
+    }
+    .dropzone .hint {
+      font-size: 0.78rem;
+      color: #52525b;
+      margin-top: 8px;
+    }
+
+    /* ── File list ── */
+    #file-list {
+      width: 100%;
+      max-width: 540px;
+      margin-top: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .file-chip {
+      background: #18181f;
+      border: 1px solid #27272a;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 0.82rem;
+      color: #a1a1aa;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .file-chip button {
+      background: none; border: none; color: #52525b;
+      cursor: pointer; font-size: 1rem; line-height: 1; padding: 0 0 0 8px;
+    }
+    .file-chip button:hover { color: #ef4444; }
+
+    /* ── Analyse button ── */
+    #analyse-btn {
+      margin-top: 20px;
+      width: 100%;
+      max-width: 540px;
+      padding: 13px;
+      background: #6366f1;
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    #analyse-btn:hover { background: #4f46e5; }
+    #analyse-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Results ── */
+    #results {
+      width: 100%;
+      max-width: 540px;
+      margin-top: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .result-card {
+      background: #18181f;
+      border: 1px solid #27272a;
+      border-radius: 12px;
+      padding: 18px 20px;
+      animation: fadeIn 0.25s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+    .result-card.natural  { border-left: 3px solid #22c55e; }
+    .result-card.ai       { border-left: 3px solid #f97316; }
+    .result-card.error    { border-left: 3px solid #ef4444; }
+
+    .result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+    .result-filename {
+      font-size: 0.85rem;
+      color: #a1a1aa;
+      word-break: break-all;
+      max-width: 70%;
+    }
+    .result-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .badge-natural { background: #14532d; color: #4ade80; }
+    .badge-ai      { background: #431407; color: #fb923c; }
+    .badge-error   { background: #450a0a; color: #f87171; }
+
+    /* Confidence bar */
+    .conf-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .conf-label { font-size: 0.78rem; color: #71717a; width: 72px; flex-shrink: 0; }
+    .conf-track {
+      flex: 1;
+      height: 6px;
+      background: #27272a;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .conf-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.5s ease;
+    }
+    .fill-natural { background: #22c55e; }
+    .fill-ai      { background: #f97316; }
+    .conf-pct { font-size: 0.8rem; color: #a1a1aa; width: 38px; text-align: right; flex-shrink: 0; }
+
+    .result-meta {
+      margin-top: 10px;
+      font-size: 0.75rem;
+      color: #52525b;
+    }
+
+    /* ── Loading spinner ── */
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Clear button ── */
+    #clear-btn {
+      margin-top: 8px;
+      background: none;
+      border: 1px solid #3f3f46;
+      color: #71717a;
+      font-size: 0.8rem;
+      padding: 6px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      align-self: flex-start;
+    }
+    #clear-btn:hover { border-color: #71717a; color: #a1a1aa; }
+  </style>
+</head>
+<body>
+
+  <h1>AI Audio Detector</h1>
+  <p class="subtitle">Upload speech audio — find out if it's human or AI-generated</p>
+
+  <div class="dropzone" id="dropzone">
+    <input type="file" id="file-input" accept=".wav,.mp3,.flac,.ogg,.m4a" multiple />
+    <div class="icon">🎙</div>
+    <p>Drop audio files here or click to browse</p>
+    <p class="hint">.wav · .mp3 · .flac · .ogg · .m4a &nbsp;·&nbsp; max 50 MB per file</p>
+  </div>
+
+  <div id="file-list"></div>
+
+  <button id="analyse-btn" disabled>Analyse</button>
+
+  <div id="results"></div>
+
+  <script>
+    const dropzone   = document.getElementById('dropzone');
+    const fileInput  = document.getElementById('file-input');
+    const fileList   = document.getElementById('file-list');
+    const analyseBtn = document.getElementById('analyse-btn');
+    const results    = document.getElementById('results');
+
+    let selectedFiles = [];
+
+    // ── File selection ────────────────────────────────────────────
+    fileInput.addEventListener('change', () => addFiles(Array.from(fileInput.files)));
+
+    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropzone.classList.remove('drag-over');
+      addFiles(Array.from(e.dataTransfer.files));
+    });
+
+    function addFiles(incoming) {
+      incoming.forEach(f => {
+        if (!selectedFiles.find(x => x.name === f.name && x.size === f.size)) {
+          selectedFiles.push(f);
+        }
+      });
+      renderFileList();
+    }
+
+    function removeFile(idx) {
+      selectedFiles.splice(idx, 1);
+      renderFileList();
+    }
+
+    function renderFileList() {
+      fileList.innerHTML = '';
+      selectedFiles.forEach((f, i) => {
+        const chip = document.createElement('div');
+        chip.className = 'file-chip';
+        chip.innerHTML = `
+          <span>${f.name} <span style="color:#52525b">${(f.size/1024).toFixed(0)} KB</span></span>
+          <button onclick="removeFile(${i})" title="Remove">✕</button>`;
+        fileList.appendChild(chip);
+      });
+      analyseBtn.disabled = selectedFiles.length === 0;
+    }
+
+    // ── Analyse ───────────────────────────────────────────────────
+    analyseBtn.addEventListener('click', async () => {
+      if (!selectedFiles.length) return;
+
+      analyseBtn.disabled = true;
+      analyseBtn.innerHTML = '<span class="spinner"></span>Analysing…';
+      results.innerHTML = '';
+
+      const isBatch = selectedFiles.length > 1;
+
+      try {
+        if (isBatch) {
+          await runBatch(selectedFiles);
+        } else {
+          await runSingle(selectedFiles[0]);
+        }
+      } finally {
+        analyseBtn.disabled = false;
+        analyseBtn.innerHTML = 'Analyse';
+
+        // Add clear button if not already there
+        if (!document.getElementById('clear-btn')) {
+          const btn = document.createElement('button');
+          btn.id = 'clear-btn';
+          btn.textContent = 'Clear results';
+          btn.onclick = () => {
+            results.innerHTML = '';
+            selectedFiles = [];
+            renderFileList();
+            btn.remove();
+          };
+          results.after(btn);
+        }
+      }
+    });
+
+    // ── Single file ───────────────────────────────────────────────
+    async function runSingle(file) {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/predict', { method: 'POST', body: form });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        renderError(file.name, err.detail || 'Unknown error');
+        return;
+      }
+      const data = await res.json();
+      renderCard(data);
+    }
+
+    // ── Batch ─────────────────────────────────────────────────────
+    async function runBatch(files) {
+      const form = new FormData();
+      files.forEach(f => form.append('files', f));
+
+      const res = await fetch('/predict/batch', { method: 'POST', body: form });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        renderError('Batch upload', err.detail || 'Unknown error');
+        return;
+      }
+      const job = await res.json();
+
+      // Poll until done
+      let result;
+      while (true) {
+        await new Promise(r => setTimeout(r, 800));
+        const poll = await fetch(`/jobs/${job.job_id}`);
+        result = await poll.json();
+        if (result.status === 'done' || result.status === 'error') break;
+      }
+
+      if (result.status === 'error') {
+        renderError('Batch', result.error || 'Job failed');
+        return;
+      }
+
+      result.result.results.forEach(r => {
+        if (r.error) renderError(r.file, r.error);
+        else renderCard(r);
+      });
+
+      // Summary row
+      const s = result.result.summary;
+      const summary = document.createElement('div');
+      summary.style.cssText = 'font-size:0.8rem;color:#52525b;margin-top:4px;text-align:center';
+      summary.textContent = `${result.result.total} files · ${s.natural} natural · ${s.ai_generated} AI · avg confidence ${(s.avg_confidence*100).toFixed(1)}%`;
+      results.appendChild(summary);
+    }
+
+    // ── Render helpers ────────────────────────────────────────────
+    function renderCard(data) {
+      const isAI     = data.label === 'ai_generated';
+      const conf     = data.confidence;
+      const confPct  = Math.round(conf * 100);
+      const altConf  = Math.round((1 - conf) * 100);
+      const labelTxt = isAI ? 'AI Generated' : 'Natural';
+      const cls      = isAI ? 'ai' : 'natural';
+      const badgeCls = isAI ? 'badge-ai' : 'badge-natural';
+      const fillCls  = isAI ? 'fill-ai' : 'fill-natural';
+      const filename = data.file.split('/').pop().split('\\').pop();
+
+      const card = document.createElement('div');
+      card.className = `result-card ${cls}`;
+      card.innerHTML = `
+        <div class="result-header">
+          <span class="result-filename">${filename}</span>
+          <span class="result-badge ${badgeCls}">${labelTxt}</span>
+        </div>
+        <div class="conf-row">
+          <span class="conf-label">Confidence</span>
+          <div class="conf-track">
+            <div class="conf-fill ${fillCls}" style="width:${confPct}%"></div>
+          </div>
+          <span class="conf-pct">${confPct}%</span>
+        </div>
+        <div class="conf-row">
+          <span class="conf-label">${isAI ? 'Natural' : 'AI'} prob.</span>
+          <div class="conf-track">
+            <div class="conf-fill" style="width:${altConf}%;background:#3f3f46"></div>
+          </div>
+          <span class="conf-pct">${altConf}%</span>
+        </div>
+        <div class="result-meta">${data.features_used} features · ${data.inference_ms} ms</div>`;
+      results.appendChild(card);
+    }
+
+    function renderError(name, msg) {
+      const card = document.createElement('div');
+      card.className = 'result-card error';
+      card.innerHTML = `
+        <div class="result-header">
+          <span class="result-filename">${name}</span>
+          <span class="result-badge badge-error">Error</span>
+        </div>
+        <div style="font-size:0.82rem;color:#f87171;margin-top:4px">${msg}</div>`;
+      results.appendChild(card);
+    }
+  </script>
+</body>
+</html>

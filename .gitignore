@@ -1,0 +1,58 @@
+# ── Python ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# ── Virtual environment ───────────────────────────────────
+venv/
+.venv/
+env/
+
+# ── Audio datasets (too large for git) ───────────────────
+data/natural/
+data/ai_generated/
+data/ai_generated_overflow/
+data/generated_audio/
+data/raw/
+data/DS_10283_3336/
+data/_tmp_*/
+
+# ── Keep sample files for reference ──────────────────────
+!data/natural/natural_sample.wav
+!data/ai_generated/ai_sample.mp3
+
+# ── Generated CSVs (reproducible, large) ─────────────────
+results/dataset.csv
+results/train.csv
+results/dev.csv
+results/eval.csv
+
+# ── Trained model (binary, large) ────────────────────────
+models/detector.pkl
+models/*.pkl
+
+# ── Generated reports ─────────────────────────────────────
+data/collection_report.json
+
+# ── macOS ─────────────────────────────────────────────────
+.DS_Store
+**/.DS_Store
+
+# ── Jupyter ───────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ── IDE ───────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+
+# ── Secrets ───────────────────────────────────────────────
+.env
+.env.*
+secrets.json
