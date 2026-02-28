@@ -60,7 +60,7 @@ ai-audio-detector/
 ### 1. Clone and create a virtual environment
 
 ```bash
-git clone https://github.com/<you>/ai-audio-detector.git
+git clone https://github.com/israelIsiaka/ai-audio-detector.git
 cd ai-audio-detector
 
 python3 -m venv venv
@@ -92,7 +92,7 @@ python src/libaries_verification.py
 Clone the repo, install dependencies, start the server, and open the browser:
 
 ```bash
-git clone https://github.com/<you>/ai-audio-detector.git
+git clone https://github.com/israelIsiaka/ai-audio-detector.git
 cd ai-audio-detector
 
 python3 -m venv venv
