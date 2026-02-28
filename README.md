@@ -2,7 +2,17 @@
 
 Classify speech audio as **human (natural)** or **AI-generated** using acoustic features and a machine-learning classifier. Comes with a REST API and a browser-based drag-and-drop UI.
 
-![Eval accuracy: 99.95%](results/confusion_matrix_eval.png)
+![Eval confusion matrix — 99.95% accuracy](results/confusion_matrix_eval.png)
+
+---
+
+## UI preview
+
+![UI](results/AI%20Audio%20detector%20UI.png)
+
+| Human audio result | AI-generated audio result |
+|---|---|
+| ![Human](results/Human%20audio%20test%20result.png) | ![AI](results/AI%20generated%20test%20result.png) |
 
 ---
 
@@ -340,6 +350,65 @@ Prints a human-readable report of all 48 extracted features, including the key A
 ## Supported formats
 
 `.wav` · `.mp3` · `.flac` · `.ogg` · `.m4a` — max 50 MB per file via the API.
+
+---
+
+## Visual analysis
+
+All charts are generated automatically and saved to `results/` when you run the training and visualizer scripts.
+
+### Confusion matrices
+
+| Dev set | Eval set (held-out) |
+|---|---|
+| ![Dev](results/confusion_matrix_dev.png) | ![Eval](results/confusion_matrix_eval.png) |
+
+The model makes almost no errors on either split. Dev and eval results are measured separately to confirm there is no overfitting.
+
+---
+
+### Feature importance
+
+![Feature importance](results/feature_importance.png)
+
+Shows the top 20 features the model relies on most. Jitter, shimmer, HNR, and F0 statistics consistently rank highest — these are the acoustic signals where AI voices diverge most from natural speech.
+
+---
+
+### Waveform comparison
+
+![Waveform comparison](results/waveform_comparison.png)
+
+Raw amplitude over time. Natural speech has irregular, dynamic energy patterns. AI speech tends to look cleaner and more uniform.
+
+---
+
+### Mel spectrogram comparison
+
+![Spectrogram comparison](results/spectrogram_comparison.png)
+
+Mel spectrograms show frequency energy across time. Natural speech has richer, more chaotic high-frequency content. AI speech often shows smoother, more structured patterns — a visual fingerprint of the synthesis process.
+
+---
+
+### Pitch (F0) contour
+
+![Pitch contour](results/pitch_contour.png)
+
+Tracks how pitch moves over time. Natural speakers vary their pitch continuously and unpredictably. AI-generated voices tend to produce a flatter, smoother contour — the F0 standard deviation is a strong classifier feature.
+
+---
+
+### Acoustic feature comparison
+
+![Feature comparison](results/feature_comparison.png)
+
+Side-by-side bar chart of 8 key acoustic features extracted from a natural and an AI audio sample. The differences in jitter, shimmer, and HNR are clearly visible — AI audio is measurably "too perfect".
+
+> To regenerate all charts from your own audio samples:
+> ```bash
+> python src/visualizer.py data/natural/natural_sample.wav data/ai_generated/ai_sample.mp3
+> ```
 
 ---
 
