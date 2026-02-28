@@ -33,6 +33,45 @@ Classify speech audio as **human (natural)** or **AI-generated** using acoustic 
 
 ---
 
+## Why this project exists
+
+We are living in the age of generative AI. Text-to-speech models can now produce voices that are indistinguishable from real humans — in real time, at scale, and at near-zero cost. When bad actors get hold of these tools the risks are real:
+
+- **Voice phishing (vishing)** — scammers clone a CEO's voice to authorise fraudulent transfers
+- **Disinformation** — fabricated audio of public figures spread as genuine recordings
+- **Evidence manipulation** — AI-generated audio submitted as witness testimony
+- **Identity fraud** — voice authentication systems bypassed with cloned speech
+
+This project was built to push back. A fast, accurate classifier that any developer can drop into their product gives people a fighting chance to verify what they are hearing.
+
+---
+
+## Use cases
+
+### Real-time call screening
+Integrate the API into a VoIP or call-centre stack. Flag incoming calls where the caller's voice scores high for AI-generation — alerting agents before sensitive information is shared.
+
+```
+Incoming call → audio chunk → POST /predict → confidence score → alert if AI > 80%
+```
+
+### Podcast and media verification
+Run uploaded audio through `/predict/batch` before publishing. Newsrooms and podcast platforms can use this as an automatic first pass to catch synthetic voices before content goes live.
+
+### Audio player authenticity badge
+Add a small "Verified Human" or "Possibly AI" badge to audio content in a player or streaming app — similar to how browsers show HTTPS padlock icons. Users stay informed without any extra steps on their end.
+
+### Social media moderation
+Scan audio attachments and voice notes at upload time. Flag or quarantine clips that score above a confidence threshold for AI-generation before they reach other users.
+
+### Evidence integrity in legal or compliance contexts
+Before relying on an audio recording — in HR investigations, compliance reviews, or legal proceedings — run it through the detector to produce a confidence report as part of the documentation trail.
+
+### Research and education
+Study how different TTS systems (ElevenLabs, WaveNet, HiFi-GAN, etc.) differ acoustically from real speech. Use the feature comparison and visualizer scripts to explore what makes AI voices detectable — and how that might change as models improve.
+
+---
+
 ## Project structure
 
 ```
@@ -424,6 +463,65 @@ Side-by-side bar chart of 8 key acoustic features extracted from a natural and a
 
 ---
 
+## Acknowledgments
+
+### Datasets
+
+| Dataset | Description | Source |
+|---------|-------------|--------|
+| **WaveFake** | AI-generated speech from 6 vocoders (MelGAN, HiFi-GAN, WaveGlow, etc.) using LJSpeech as the base | [github.com/RUB-SysSec/WaveFake](https://github.com/RUB-SysSec/WaveFake) |
+| **LJSpeech** | Single-speaker English audiobook recordings — used as natural speech baseline in WaveFake | [keithito.com/LJ-Speech-Dataset](https://keithito.com/LJ-Speech-Dataset/) |
+| **ASVspoof 2019 LA** | Anti-spoofing corpus — bonafide (human) and spoof (TTS/VC) speech from 19 AI systems | [datashare.ed.ac.uk/handle/10283/3336](https://datashare.ed.ac.uk/handle/10283/3336) |
+| **ElevenLabs TTS** | AI-generated speech samples used for additional training data | [elevenlabs.io](https://elevenlabs.io) |
+
+### Python libraries
+
+| Library | Purpose | License |
+|---------|---------|---------|
+| [librosa](https://librosa.org) | Audio loading, MFCCs, spectral features, F0 extraction | ISC |
+| [praat-parselmouth](https://parselmouth.readthedocs.io) | Jitter, shimmer, HNR via Praat | GPL-3.0 |
+| [scikit-learn](https://scikit-learn.org) | RandomForest, StandardScaler, cross-validation, metrics | BSD-3 |
+| [XGBoost](https://xgboost.readthedocs.io) | Gradient-boosted classifier | Apache-2.0 |
+| [NumPy](https://numpy.org) | Numerical computing | BSD-3 |
+| [pandas](https://pandas.pydata.org) | Dataset loading and manipulation | BSD-3 |
+| [FastAPI](https://fastapi.tiangolo.com) | REST API framework | MIT |
+| [Uvicorn](https://www.uvicorn.org) | ASGI server for FastAPI | BSD-3 |
+| [matplotlib](https://matplotlib.org) | Chart generation | PSF |
+| [seaborn](https://seaborn.pydata.org) | Confusion matrix heatmaps | BSD-3 |
+| [tqdm](https://tqdm.github.io) | Progress bars | MIT / MPL-2.0 |
+
+### Research
+
+The acoustic features used in this project are grounded in voice quality and anti-spoofing research:
+
+- **ASVspoof challenge series** — established jitter, shimmer, and HNR as key liveness indicators
+- **WaveFake paper** — J. Frank & L. Schönherr (2021), *WaveFake: A Data Set to Facilitate Audio Deepfake Detection* ([arXiv:2111.02813](https://arxiv.org/abs/2111.02813))
+- **Praat** — P. Boersma & D. Weenink, *Praat: doing phonetics by computer* ([praat.org](https://www.praat.org))
+
+---
+
 ## License
 
-MIT
+MIT License
+
+Copyright (c) 2025 Israel Isiaka
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+> **Note on dataset licenses:** The ASVspoof 2019 and WaveFake datasets are made available for non-commercial research purposes. If you use them, comply with their respective terms. LJSpeech is public domain. ElevenLabs generated content is subject to their [Terms of Service](https://elevenlabs.io/terms).
