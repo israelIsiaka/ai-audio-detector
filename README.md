@@ -1,3 +1,42 @@
+## Why this project ?
+
+We are living in the age of generative AI. Text to speech models can now produce voices that are indistinguishable from real humans — in real time, at scale, and at near zero or extremely low cost. When bad actors get hold of these tools the risks are real:
+
+- **Voice phishing (vishing)** — scammers clone a CEO's voice to authorise fraudulent transfers
+- **Disinformation** — fabricated audio of public figures spread as genuine recordings
+- **Evidence manipulation** — AI generated audio submitted as witness testimony
+- **Identity fraud** — voice authentication systems bypassed with cloned speech
+
+This project was built to as a accurate classifier that any developer can drop into their product gives people a fighting chance to verify what they are hearing.
+
+---
+
+## Use cases
+
+### Real-time call screening
+Integrate the API into a VoIP or call-centre stack. Flag incoming calls where the caller's voice scores high for AI-generation — alerting agents before sensitive information is shared.
+
+```
+Incoming call → audio chunk → POST /predict → confidence score → alert if AI > 80%
+```
+
+### Podcast and media verification
+Run uploaded audio through `/predict/batch` before publishing. Newsrooms and podcast platforms can use this as an automatic first pass to catch synthetic voices before content goes live.
+
+### Audio player authenticity badge
+Add a small "Verified Human" or "Possibly AI" badge to audio content in a player or streaming app — similar to how browsers show HTTPS padlock icons. Users stay informed without any extra steps on their end.
+
+### Social media moderation
+Scan audio attachments and voice notes at upload time. Flag or quarantine clips that score above a confidence threshold for AI generation before they reach other users.
+
+### Evidence integrity in legal or compliance contexts
+Before relying on an audio recording — in HR investigations, compliance reviews, or legal proceedings — run it through the detector to produce a confidence report as part of the documentation trail.
+
+### Research and education
+Study how different TTS systems (ElevenLabs, WaveNet, HiFi-GAN, etc.) differ acoustically from real speech. Use the feature comparison and visualizer scripts to explore what makes AI voices detectable — and how that might change as models improve.
+
+---
+
 # AI Audio Detector
 
 Classify speech audio as **human (natural)** or **AI-generated** using acoustic features and a machine-learning classifier. Comes with a REST API and a browser-based drag-and-drop UI.
@@ -31,44 +70,6 @@ Classify speech audio as **human (natural)** or **AI-generated** using acoustic 
 
 4. **API + UI** — FastAPI serves a REST API and a dark-themed single-page UI.
 
----
-
-## Why this project exists
-
-We are living in the age of generative AI. Text-to-speech models can now produce voices that are indistinguishable from real humans — in real time, at scale, and at near-zero cost. When bad actors get hold of these tools the risks are real:
-
-- **Voice phishing (vishing)** — scammers clone a CEO's voice to authorise fraudulent transfers
-- **Disinformation** — fabricated audio of public figures spread as genuine recordings
-- **Evidence manipulation** — AI-generated audio submitted as witness testimony
-- **Identity fraud** — voice authentication systems bypassed with cloned speech
-
-This project was built to push back. A fast, accurate classifier that any developer can drop into their product gives people a fighting chance to verify what they are hearing.
-
----
-
-## Use cases
-
-### Real-time call screening
-Integrate the API into a VoIP or call-centre stack. Flag incoming calls where the caller's voice scores high for AI-generation — alerting agents before sensitive information is shared.
-
-```
-Incoming call → audio chunk → POST /predict → confidence score → alert if AI > 80%
-```
-
-### Podcast and media verification
-Run uploaded audio through `/predict/batch` before publishing. Newsrooms and podcast platforms can use this as an automatic first pass to catch synthetic voices before content goes live.
-
-### Audio player authenticity badge
-Add a small "Verified Human" or "Possibly AI" badge to audio content in a player or streaming app — similar to how browsers show HTTPS padlock icons. Users stay informed without any extra steps on their end.
-
-### Social media moderation
-Scan audio attachments and voice notes at upload time. Flag or quarantine clips that score above a confidence threshold for AI-generation before they reach other users.
-
-### Evidence integrity in legal or compliance contexts
-Before relying on an audio recording — in HR investigations, compliance reviews, or legal proceedings — run it through the detector to produce a confidence report as part of the documentation trail.
-
-### Research and education
-Study how different TTS systems (ElevenLabs, WaveNet, HiFi-GAN, etc.) differ acoustically from real speech. Use the feature comparison and visualizer scripts to explore what makes AI voices detectable — and how that might change as models improve.
 
 ---
 
