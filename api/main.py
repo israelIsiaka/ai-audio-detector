@@ -3,8 +3,8 @@ api/main.py — FastAPI REST API for AI Audio Detector.
 
 Start server:
     uvicorn api.main:app --reload --port 8000
-    # or from project root:
-    python -m uvicorn api.main:app --reload --port 8000
+    # accessible from other devices on your network:
+    uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
 Endpoints:
     GET  /                  — welcome
@@ -16,6 +16,7 @@ Endpoints:
 """
 
 import asyncio
+import datetime
 import io
 import logging
 import sys
@@ -32,7 +33,7 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile, status
+from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -41,12 +42,36 @@ from pydantic import BaseModel, Field
 from pipeline import AudioDetector  # type: ignore
 
 # ---------------------------------------------------------------------------
-# Logging
+# Logging — console + daily rotating file (logs/YYYY-MM-DD.log, append mode)
 # ---------------------------------------------------------------------------
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+LOG_DIR = PROJECT_ROOT / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+
+_log_formatter = logging.Formatter(
+    "%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
+
+def _get_file_handler() -> logging.FileHandler:
+    """Return a FileHandler for today's log file (append mode)."""
+    today = datetime.date.today().isoformat()
+    log_path = LOG_DIR / f"{today}.log"
+    handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
+    handler.setFormatter(_log_formatter)
+    handler.setLevel(logging.INFO)
+    return handler
+
+def _setup_logging() -> None:
+    console = logging.StreamHandler()
+    console.setFormatter(_log_formatter)
+    console.setLevel(logging.INFO)
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    root.handlers.clear()
+    root.addHandler(console)
+    root.addHandler(_get_file_handler())
+
+_setup_logging()
 log = logging.getLogger("ai-audio-api")
 
 # ---------------------------------------------------------------------------
@@ -69,6 +94,18 @@ _jobs: dict[str, dict[str, Any]] = {}
 _detector: AudioDetector | None = None
 
 
+def _get_local_ip() -> str:
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "unavailable"
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _detector
@@ -79,6 +116,20 @@ async def lifespan(app: FastAPI):
     except FileNotFoundError:
         log.warning("Model not found at '%s'. /predict will return 503 until model is trained.", MODEL_PATH)
         _detector = None
+
+    import sys
+    local_ip = _get_local_ip()
+    today    = datetime.date.today().isoformat()
+    sys.stdout.write("\n" + "=" * 45 + "\n")
+    sys.stdout.write("  AI Audio Detector is running\n")
+    sys.stdout.write("=" * 45 + "\n")
+    sys.stdout.write(f"  Local:    http://localhost:8000\n")
+    sys.stdout.write(f"  Network:  http://{local_ip}:8000\n")
+    sys.stdout.write(f"  Log:      logs/{today}.log\n")
+    sys.stdout.write("=" * 45 + "\n\n")
+    sys.stdout.flush()
+    log.info("Server started — local=http://localhost:8000  network=http://%s:8000", local_ip)
+
     yield
     log.info("Shutting down.")
 
@@ -92,6 +143,51 @@ app = FastAPI(
 
 STATIC_DIR = PROJECT_ROOT / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# ---------------------------------------------------------------------------
+# Middleware — log every request and response
+# ---------------------------------------------------------------------------
+_current_log_date = datetime.date.today()
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    global _current_log_date
+
+    # Rotate log file at midnight without restarting
+    today = datetime.date.today()
+    if today != _current_log_date:
+        _current_log_date = today
+        root = logging.getLogger()
+        # Remove old file handlers and attach today's
+        root.handlers = [h for h in root.handlers if not isinstance(h, logging.FileHandler)]
+        root.addHandler(_get_file_handler())
+        log.info("Log rotated — new file: logs/%s.log", today.isoformat())
+
+    client = request.client.host if request.client else "unknown"
+    start  = time.time()
+
+    # Log incoming request
+    log.info("→ %s %s  client=%s", request.method, request.url.path, client)
+
+    # Log query params if present
+    if request.query_params:
+        log.info("  params=%s", dict(request.query_params))
+
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        duration_ms = round((time.time() - start) * 1000, 1)
+        log.error("✗ %s %s  ERROR=%s  (%sms)", request.method, request.url.path, exc, duration_ms)
+        raise
+
+    duration_ms = round((time.time() - start) * 1000, 1)
+    status_icon = "✓" if response.status_code < 400 else "✗"
+    log.info(
+        "%s %s %s  status=%d  time=%sms  client=%s",
+        status_icon, request.method, request.url.path,
+        response.status_code, duration_ms, client,
+    )
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -163,18 +259,27 @@ def _validate_upload(file: UploadFile) -> None:
 
 
 async def _save_upload_to_tmp(file: UploadFile) -> Path:
-    """Stream upload to a named temp file, return its path."""
-    contents = await file.read()
-    size_mb = len(contents) / (1024 * 1024)
-    if size_mb > MAX_FILE_SIZE_MB:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File too large ({size_mb:.1f} MB). Max allowed: {MAX_FILE_SIZE_MB} MB.",
-        )
+    """Stream upload in chunks to a temp file, enforcing size limit early."""
     suffix = Path(file.filename or "audio").suffix or ".wav"
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-    tmp.write(contents)
-    tmp.close()
+    size = 0
+    max_bytes = MAX_FILE_SIZE_MB * 1024 * 1024
+    try:
+        while True:
+            chunk = await file.read(256 * 1024)  # 256 KB chunks
+            if not chunk:
+                break
+            size += len(chunk)
+            if size > max_bytes:
+                tmp.close()
+                Path(tmp.name).unlink(missing_ok=True)
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"File too large ({size / (1024*1024):.1f} MB). Max allowed: {MAX_FILE_SIZE_MB} MB.",
+                )
+            tmp.write(chunk)
+    finally:
+        tmp.close()
     return Path(tmp.name)
 
 
@@ -282,7 +387,12 @@ async def predict(file: UploadFile = File(..., description="Audio file (.wav, .m
         result = await asyncio.get_event_loop().run_in_executor(
             None, detector.predict, tmp_path
         )
-        result["file"] = file.filename  # return original filename, not tmp path
+        result["file"] = file.filename
+        log.info(
+            "PREDICTION  file=%s  label=%s  confidence=%.2f%%  time=%.1fms",
+            file.filename, result["label"],
+            result["confidence"] * 100, result["inference_ms"],
+        )
         return PredictionResponse(**result)
     except Exception as exc:
         log.exception("Prediction failed for %s", file.filename)

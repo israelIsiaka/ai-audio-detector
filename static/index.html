@@ -200,6 +200,83 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ── Loading card ── */
+    .loading-card {
+      background: #18181f;
+      border: 1px solid #27272a;
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      animation: fadeIn 0.25s ease;
+    }
+    .loading-filename {
+      font-size: 0.82rem;
+      color: #a1a1aa;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 500;
+    }
+    .phase-block {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .phase-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .phase-label {
+      font-size: 0.78rem;
+      color: #3f3f46;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: color 0.3s;
+    }
+    .phase-label.active  { color: #a78bfa; }
+    .phase-label.done    { color: #22c55e; }
+    .phase-pct {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #3f3f46;
+      min-width: 36px;
+      text-align: right;
+      transition: color 0.3s;
+    }
+    .phase-pct.active { color: #a78bfa; }
+    .phase-pct.done   { color: #22c55e; }
+    .progress-track {
+      width: 100%;
+      height: 5px;
+      background: #27272a;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      transition: width 0.25s ease;
+    }
+    .fill-upload  { background: linear-gradient(90deg, #6366f1, #818cf8); }
+    .fill-done    { background: #22c55e; }
+
+    /* Shimmer — shown while server is analysing (indeterminate) */
+    @keyframes shimmer {
+      0%   { background-position: 200% center; }
+      100% { background-position: -200% center; }
+    }
+    .fill-shimmer {
+      width: 100% !important;
+      background: linear-gradient(90deg, #2e1065 0%, #a78bfa 50%, #2e1065 100%);
+      background-size: 200% 100%;
+      animation: shimmer 1.6s linear infinite;
+    }
+
     /* ── Clear button ── */
     #clear-btn {
       margin-top: 8px;
@@ -316,42 +393,206 @@
       }
     });
 
+    // ── Result cache — skip re-upload for same file ───────────────
+    const _cache = new Map();
+    function fileKey(f) { return `${f.name}-${f.size}-${f.lastModified}`; }
+
+    // ── Loading card ──────────────────────────────────────────────
+    function showLoading(filename) {
+      const card = document.createElement('div');
+      card.className = 'loading-card';
+      card.id = 'loading-card';
+      card.innerHTML = `
+        <div class="loading-filename">🎙 ${filename}</div>
+
+        <div class="phase-block">
+          <div class="phase-header">
+            <span class="phase-label active" id="upload-label">📤 Uploading</span>
+            <span class="phase-pct active" id="upload-pct">0%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill fill-upload" id="upload-fill"></div>
+          </div>
+        </div>
+
+        <div class="phase-block">
+          <div class="phase-header">
+            <span class="phase-label" id="analyse-label">🔬 Analysing</span>
+            <span class="phase-pct" id="analyse-pct">—</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="analyse-fill"></div>
+          </div>
+        </div>`;
+      results.appendChild(card);
+
+      const upFill  = document.getElementById('upload-fill');
+      const upPct   = document.getElementById('upload-pct');
+      const upLabel = document.getElementById('upload-label');
+      const anFill  = document.getElementById('analyse-fill');
+      const anPct   = document.getElementById('analyse-pct');
+      const anLabel = document.getElementById('analyse-label');
+
+      let upVal = 0, upTimer = null;
+
+      // Smoothly animate upload bar to target %
+      function setUpload(target) {
+        if (upTimer) clearInterval(upTimer);
+        upTimer = setInterval(() => {
+          if (upVal < target) {
+            upVal = Math.min(upVal + 1, target);
+            upFill.style.width = upVal + '%';
+            upPct.textContent  = upVal + '%';
+          } else {
+            clearInterval(upTimer);
+            if (upVal >= 100) {
+              upLabel.className = 'phase-label done';
+              upPct.className   = 'phase-pct done';
+              upPct.textContent = '✓';
+            }
+          }
+        }, 18);
+      }
+
+      // Activate analysis shimmer (indeterminate — server is working)
+      function startAnalysis() {
+        anLabel.className = 'phase-label active';
+        anPct.className   = 'phase-pct active';
+        anPct.textContent = '…';
+        anFill.className  = 'progress-fill fill-shimmer';
+      }
+
+      // Called when server responds — snap everything to done
+      function finish() {
+        if (upTimer) clearInterval(upTimer);
+        // Upload done
+        upVal = 100;
+        upFill.style.width = '100%';
+        upLabel.className  = 'phase-label done';
+        upPct.className    = 'phase-pct done';
+        upPct.textContent  = '✓';
+        // Analysis done
+        anFill.className  = 'progress-fill fill-done';
+        anFill.style.width = '100%';
+        anLabel.className = 'phase-label done';
+        anPct.className   = 'phase-pct done';
+        anPct.textContent = '✓';
+        setTimeout(() => document.getElementById('loading-card')?.remove(), 700);
+      }
+
+      return { setUpload, startAnalysis, finish };
+    }
+
+    function finishLoading(loader) { loader.finish(); }
+
     // ── Single file ───────────────────────────────────────────────
     async function runSingle(file) {
-      const form = new FormData();
-      form.append('file', file);
-      const res = await fetch('/predict', { method: 'POST', body: form });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: res.statusText }));
-        renderError(file.name, err.detail || 'Unknown error');
+      // Return cached result instantly — no re-upload
+      const key = fileKey(file);
+      if (_cache.has(key)) {
+        renderCard(_cache.get(key));
         return;
       }
-      const data = await res.json();
-      renderCard(data);
+
+      const loader = showLoading(file.name);
+
+      await new Promise((resolve) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/predict');
+
+        // Real upload progress
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable)
+            loader.setUpload(Math.round((e.loaded / e.total) * 100));
+        };
+
+        // Upload fully sent → activate analysis shimmer
+        xhr.upload.onload = () => {
+          loader.setUpload(100);
+          loader.startAnalysis();
+        };
+
+        // Response received → analysis done
+        xhr.onload = () => {
+          loader.finish();
+          if (xhr.status >= 200 && xhr.status < 300) {
+            const data = JSON.parse(xhr.responseText);
+            _cache.set(key, data);   // cache so re-click is instant
+            renderCard(data);
+          } else {
+            let detail = 'Unknown error';
+            try { detail = JSON.parse(xhr.responseText).detail || detail; } catch {}
+            renderError(file.name, detail);
+          }
+          resolve();
+        };
+
+        xhr.onerror = () => {
+          loader.finish();
+          renderError(file.name, 'Network error — check your connection.');
+          resolve();
+        };
+
+        const form = new FormData();
+        form.append('file', file);
+        xhr.send(form);
+      });
     }
 
     // ── Batch ─────────────────────────────────────────────────────
     async function runBatch(files) {
-      const form = new FormData();
-      files.forEach(f => form.append('files', f));
+      const loader = showLoading(`${files.length} files`);
 
-      const res = await fetch('/predict/batch', { method: 'POST', body: form });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: res.statusText }));
-        renderError('Batch upload', err.detail || 'Unknown error');
+      // Upload via XHR for real progress
+      let responseText, responseStatus;
+      try {
+        await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', '/predict/batch');
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable)
+              loader.setUpload(Math.round((e.loaded / e.total) * 100));
+          };
+          xhr.onload = () => {
+            loader.setUpload(100);
+            responseText   = xhr.responseText;
+            responseStatus = xhr.status;
+            resolve();
+          };
+          xhr.onerror = () => reject(new Error('Network error'));
+          const form = new FormData();
+          files.forEach(f => form.append('files', f));
+          xhr.send(form);
+        });
+      } catch (err) {
+        finishLoading(loader);
+        renderError('Batch upload', err.message);
         return;
       }
-      const job = await res.json();
 
-      // Poll until done
+      if (responseStatus !== 202) {
+        finishLoading(loader);
+        let detail = 'Upload failed';
+        try { detail = JSON.parse(responseText).detail || detail; } catch {}
+        renderError('Batch upload', detail);
+        return;
+      }
+
+      loader.startAnalysis();
+      const job = JSON.parse(responseText);
+
+      // Poll until done — advance analyse bar each poll
       let result;
+      let pollPct = 20;
       while (true) {
         await new Promise(r => setTimeout(r, 800));
         const poll = await fetch(`/jobs/${job.job_id}`);
         result = await poll.json();
         if (result.status === 'done' || result.status === 'error') break;
+        pollPct = Math.min(pollPct + 15, 85); // unused but kept for reference
       }
 
+      finishLoading(loader);
       if (result.status === 'error') {
         renderError('Batch', result.error || 'Job failed');
         return;

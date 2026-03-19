@@ -80,10 +80,15 @@ def extract_features(audio_path: str) -> dict:
         features["f0_mean"] = features["f0_std"] = features["f0_range"] = features["f0_voiced_ratio"] = 0.0
 
     # ── 5. JITTER / SHIMMER / HNR (via Praat) ────────────────────────
-    # These are the most powerful AI indicators
-    # AI = very LOW jitter/shimmer, very HIGH HNR (too perfect)
+    # Praat only reads .wav/.aiff — convert to a temp wav first so formats
+    # like .m4a, .mp3, .ogg etc. are handled correctly.
     try:
-        snd = parselmouth.Sound(audio_path)
+        import tempfile, soundfile as sf, os
+        tmp_wav = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+        tmp_wav.close()
+        sf.write(tmp_wav.name, y, sr)
+        snd = parselmouth.Sound(tmp_wav.name)
+        os.unlink(tmp_wav.name)
         point_process = call(snd, "To PointProcess (periodic, cc)", 75, 600)
 
         features["jitter_local"] = round(
